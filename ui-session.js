@@ -1,10 +1,13 @@
-import { html } from "https://esm.sh/htm/preact/standalone";
+import { html, render } from "https://esm.sh/htm/preact/standalone";
 import {
   DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, SKIP,
-  exById, inThisWeek,
-  hooks, me, profile, plan, sessions, note, link, isPhysio,
-  setView, signUp, signIn, saveOnboarding,
-  startSession, logSet, finishSession, skipSession
+  exById, availableExercises, weekStart, inThisWeek,
+  state, hooks, subscribe, me, profile, plan, sessions, note, link, isPhysio,
+  setView, signUp, signIn, signOut, saveOnboarding, updateProfile, setOneHanded,
+  updatePlanItem, setNote, startSession, logSet, finishSession, skipSession, deleteSession,
+  generateInvite, revokeInvite, unlink, joinWithCode,
+  timerSeconds, startTimer, pauseTimer, resetTimer,
+  cloudEnabled, startOAuth, setRole
 } from "./store.js";
 
 const hookBuckets = new Map();
@@ -24,45 +27,55 @@ function preactState(init) {
 function AuthPage() {
   hooks.key = "auth";
   hooks.cursor = 0;
-  const [mode, setMode] = preactState("in");
-  const [role, setRole] = preactState("owner");
+  const [mode, setMode] = preactState("up");
   const [email, setEmail] = preactState("");
   const [password, setPassword] = preactState("");
   const [name, setName] = preactState("");
+  const [busy, setBusy] = preactState(false);
   const [err, setErr] = preactState(null);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    const msg = mode === "in" ? await signIn(email, password) : await signUp(email, password, name);
+    setErr(msg);
+    setBusy(false);
+  };
   return html`
     <div class="page" style="padding-top:0">
       <div class="auth-hero">
         <div class="eyebrow">Training log</div>
         <h1>Cappie<span style="color:var(--accent)">.</span></h1>
-        <p class="muted">Grip and band work, planned around the limbs you live with.</p>
+        <p class="muted">Home training for grip, bands, and below-knee work. Use email to create an account, then tap I train.</p>
       </div>
       <div class="card">
         <div class="row" style="margin-bottom:14px">
-          <button class=${"chip " + (mode === "in" ? "on" : "")} onClick=${() => setMode("in")}>Sign in</button>
           <button class=${"chip " + (mode === "up" ? "on" : "")} onClick=${() => setMode("up")}>Create account</button>
+          <button class=${"chip " + (mode === "in" ? "on" : "")} onClick=${() => setMode("in")}>Sign in</button>
         </div>
-        <form onSubmit=${(e) => { e.preventDefault(); setErr(mode === "in" ? signIn(email, password) : signUp(email, password, name, role)); }}>
+        <form onSubmit=${submit}>
           ${mode === "up" && html`
-            <label class="field"><span>Name</span><input value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Alex" /></label>
-            <div class="grid2" style="margin-bottom:12px">
-              <button type="button" class=${"chip " + (role === "owner" ? "on" : "")} onClick=${() => setRole("owner")}>I train</button>
-              <button type="button" class=${"chip " + (role === "physio" ? "on" : "")} onClick=${() => setRole("physio")}>I’m a clinician</button>
-            </div>
+            <label class="field"><span>Name</span><input value=${name} onInput=${(e) => setName(e.target.value)} placeholder="Your name" autocomplete="name" /></label>
           `}
-          <label class="field"><span>Email</span><input type="email" value=${email} onInput=${(e) => setEmail(e.target.value)} placeholder="you@email.com" /></label>
-          <label class="field"><span>Password</span><input type="password" value=${password} onInput=${(e) => setPassword(e.target.value)} /></label>
+          <label class="field"><span>Email</span><input type="email" value=${email} onInput=${(e) => setEmail(e.target.value)} placeholder="you@email.com" autocomplete="email" /></label>
+          <label class="field"><span>Password</span><input type="password" value=${password} onInput=${(e) => setPassword(e.target.value)} autocomplete=${mode === "up" ? "new-password" : "current-password"} /></label>
           ${err && html`<p class="err">${err}</p>`}
-          <button class="btn accent full" type="submit">${mode === "in" ? "Continue" : "Create account"}</button>
+          <button class="btn accent full" type="submit" disabled=${busy}>${busy ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
         </form>
       </div>
-      <div class="card">
-        <h3>Try the demo</h3>
-        <p class="muted">Same device, two accounts. Password for both is demo.</p>
-        <button class="btn ghost full" style="margin-top:8px" onClick=${() => signIn("athlete@cappie.app", "demo")}>Demo athlete</button>
-        <button class="btn ghost full" style="margin-top:8px" onClick=${() => signIn("physio@cappie.app", "demo")}>Demo clinician</button>
-      </div>
       <p class="disclaimer">Cappie is a training log, not medical advice. Follow the limits your clinician gave you.</p>
+    </div>
+  `;
+}
+
+function RolePage() {
+  return html`
+    <div class="page">
+      <div class="eyebrow">Account</div>
+      <h2 style="margin:6px 0 10px">How will you use Cappie?</h2>
+      <p class="muted">Athletes log sessions. A clinician account is only for viewing someone else’s plan.</p>
+      <button class="btn accent full" style="margin-top:12px" onClick=${() => setRole("owner")}>I train</button>
+      <button class="btn ghost full" style="margin-top:8px" onClick=${() => setRole("physio")}>I’m a clinician</button>
     </div>
   `;
 }
@@ -72,7 +85,7 @@ function OnboardingPage() {
   hooks.cursor = 0;
   const [step, setStep] = preactState(0);
   const [limbs, setLimbs] = preactState([]);
-  const [kit, setKit] = preactState(["chair"]);
+  const [kit, setKit] = preactState(["chair", "mat"]);
   const [days, setDays] = preactState([1, 3, 5]);
   const [goal, setGoal] = preactState(3);
   const toggle = (list, item, set) => set(list.includes(item) ? list.filter((x) => x !== item) : [...list, item]);
@@ -84,7 +97,7 @@ function OnboardingPage() {
         ${step === 0 ? `Welcome, ${u?.displayName || ""}. Which limbs are amputated?` : step === 1 ? "What equipment do you have?" : "When do you want to train?"}
       </h2>
       ${step === 0 && html`
-        <p class="muted">Select every side that applies. Exercises will follow this list.</p>
+        <p class="muted">Select every side that applies. Below-knee unlocks the home chair and mat program.</p>
         ${["upper", "lower"].map((g) => html`
           <div class="card" key=${g}>
             <h3>${g === "upper" ? "Arm and hand" : "Leg"}</h3>
@@ -193,7 +206,20 @@ function SessionPage() {
       <div class="eyebrow">Exercise ${Math.min(idx + 1, groups.length)} / ${groups.length} · ${doneSets}/${open.sets.length} sets</div>
       <h2 style="margin:4px 0 8px">${ex?.name || "Session"}</h2>
       <p class="muted">${ex?.cue}</p>
-      <p class="tiny" style="margin-bottom:16px">${ex?.adaptation}</p>
+      <p class="tiny" style="margin-bottom:12px">${ex?.adaptation}${ex?.source ? " · " + ex.source : ""}</p>
+      <div class="card">
+        <div class="row space">
+          <div>
+            <div class="eyebrow">Timer</div>
+            <div class="hero-num" style="font-size:36px;margin-top:4px">${String(Math.floor(timerSeconds() / 60)).padStart(2, "0")}:${String(timerSeconds() % 60).padStart(2, "0")}</div>
+          </div>
+        </div>
+        <div class="grid3" style="margin-top:10px">
+          <button class="btn accent" onClick=${startTimer}>Start</button>
+          <button class="btn ghost" onClick=${pauseTimer}>Pause</button>
+          <button class="btn ghost" onClick=${resetTimer}>Reset</button>
+        </div>
+      </div>
       ${current?.sets.map((set) => html`
         <div class="card" key=${set.exerciseId + "-" + set.setIndex}>
           <div class="row space"><h3>Set ${set.setIndex + 1}</h3><div class="tiny">prescribed ${set.prescribedValue} ${ex?.metric}</div></div>
@@ -223,4 +249,5 @@ function SessionPage() {
   `;
 }
 
-export { AuthPage, OnboardingPage, TodayPage, SessionPage, preactState };
+
+export { AuthPage, RolePage, OnboardingPage, TodayPage, SessionPage, preactState };

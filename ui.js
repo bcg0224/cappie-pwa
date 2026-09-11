@@ -1,13 +1,13 @@
 import { html, render } from "https://esm.sh/htm/preact/standalone";
 import {
-  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS,
+  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS,
   exById, availableExercises, weekStart,
   state, hooks, setRenderer, subscribe, me, profile, plan, sessions, note, link, isPhysio,
-  setView, signOut, updateProfile, setOneHanded,
+  setView, signOut, updateProfile, setOneHanded, setLook,
   updatePlanItem, setNote, deleteSession,
   generateInvite, revokeInvite, unlink, joinWithCode
 } from "./store.js";
-import { AuthPage, OnboardingPage, TodayPage, SessionPage, preactState } from "./ui-session.js";
+import { AuthPage, RolePage, OnboardingPage, TodayPage, SessionPage, preactState } from "./ui-session.js";
 
 function PlanPage() {
   hooks.key = "plan";
@@ -228,6 +228,18 @@ function ProfilePage() {
           <button class=${"toggle " + (u.oneHanded ? "on" : "")} onClick=${() => setOneHanded(!u.oneHanded)}><i /></button>
         </div>
       </div>
+      <div class="card">
+        <h3>Theme</h3>
+        <div class="grid2">
+          ${THEMES.map((t) => html`<button key=${t.id} class=${"chip " + ((u.theme || "clay") === t.id ? "on" : "")} onClick=${() => setLook({ theme: t.id })}>${t.label}</button>`)}
+        </div>
+      </div>
+      <div class="card">
+        <h3>Wallpaper</h3>
+        <div class="grid2">
+          ${WALLS.map((w) => html`<button key=${w.id} class=${"chip " + ((u.wall || "linen") === w.id ? "on" : "")} onClick=${() => setLook({ wall: w.id })}>${w.label}</button>`)}
+        </div>
+      </div>
       ${u.role === "owner" && html`
         <div class="card">
           <h3>Share with a clinician</h3>
@@ -312,7 +324,6 @@ function JoinPage() {
       </label>
       ${err && html`<p class="err">${err}</p>`}
       <button class="btn accent full" onClick=${() => setErr(joinWithCode(code))}>Join</button>
-      <p class="tiny" style="margin-top:12px">Demo athlete code: CAP-DEMO — first rotate or generate a fresh unused code if this one is already used.</p>
       <button class="btn ghost full" style="margin-top:16px" onClick=${signOut}>Sign out</button>
     </div>
   `;
@@ -321,9 +332,10 @@ function JoinPage() {
 function App() {
   const view = state.view;
   const u = me();
-  const showTabs = !!u && !["auth", "onboard", "join", "session", "share", "history"].includes(view);
+  const showTabs = !!u && !["auth", "role", "onboard", "join", "session", "share", "history"].includes(view);
   const page =
     view === "auth" ? AuthPage() :
+    view === "role" ? RolePage() :
     view === "onboard" ? OnboardingPage() :
     view === "join" ? JoinPage() :
     view === "today" ? TodayPage() :
@@ -335,8 +347,8 @@ function App() {
     view === "profile" ? ProfilePage() :
     AuthPage();
   return html`
-    <div class=${"app " + (u?.oneHanded ? "one-handed" : "")}>
-      ${view !== "auth" && html`<div class="topbar"><div class="brand">Ca<span>ppie</span></div><div class="tiny">${u?.role === "physio" ? "Clinician" : u ? "Athlete" : ""}</div></div>`}
+    <div class=${"app " + (u?.oneHanded ? "one-handed" : "")} data-theme=${u?.theme || "clay"} data-wall=${u?.wall || "linen"}>
+      ${view !== "auth" && html`<div class="topbar"><div class="brand">Ca<span>ppie</span></div><div class="tiny">${u?.role === "physio" ? "Clinician" : u?.role === "owner" ? "Athlete" : ""}</div></div>`}
       ${page}
       ${showTabs && html`
         <nav class="tabs">

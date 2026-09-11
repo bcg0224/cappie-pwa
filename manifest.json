@@ -2,11 +2,11 @@
   "name": "Cappie",
   "short_name": "Cappie",
   "description": "Grip and band training for amputees",
-  "start_url": "./",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#F7F3EE",
   "theme_color": "#1E3A4C",
   "icons": [
-    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
