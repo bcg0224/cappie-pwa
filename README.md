@@ -14,13 +14,14 @@ The running build is static HTML + ES modules (`ui.js`, `ui-session.js`, `store.
 - Equipment filter: grippers, pinch block, putty, bands, chair, mat.
 - Training days, weekly session goal, reps / holds, skip reasons.
 - Session timer.
-- Stats: exercises per day, week/month improvement vs the period before, today vs yesterday.
+- Stats: exercises per day, week/month improvement vs the period before, today vs yesterday, optional mood 1–10 after a full session.
 - Clinician invite code (one linked physio).
 - Wordmark **Cappie.** — the period follows the theme colour.
 - Mountain app icon for the Home Screen (iOS 180 PNG, Android 192/512 + maskable).
 - Themes (Clay, Forest, Ink, Dusk), wallpapers, night mode. Settings save on the phone and to the cloud account.
 - Optional one-handed mode.
 - Tutorial after first setup, including Add to Home Screen for iPhone (Safari) and Android (Chrome). Replay from Settings.
+- Home Screen iOS: content sits below the status overlay, night fills the status bar (no white strip), double-tap does not zoom.
 - Google Sign-in first. Email / password on the same Supabase project is the backup.
 
 ## Dad can log in today (email)

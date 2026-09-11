@@ -1,14 +1,14 @@
 import { html, render } from "https://esm.sh/htm/preact/standalone";
 import {
-  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS,
+  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, FONT_SCALES,
   exById, availableExercises, weekStart,
   state, hooks, setRenderer, subscribe, me, profile, plan, sessions, note, link, isPhysio,
   setView, signOut, updateProfile, setOneHanded, setLook,
   updatePlanItem, setNote, deleteSession,
   generateInvite, revokeInvite, unlink, joinWithCode,
-  dailyExerciseCounts, exerciseTrends, reopenTutorial
-} from "./store.js?v=20260911d";
-import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911d";
+  dailyExerciseCounts, exerciseTrends, moodHistory, moodAverage, reopenTutorial, applyChrome
+} from "./store.js?v=20260911e";
+import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911e";
 
 let installPrompt = null;
 if (typeof window !== "undefined") {
@@ -168,6 +168,22 @@ function ProgressPage() {
         ${!trends.length && html`<p class="muted">Turn on exercises in Plan to track them.</p>`}
       </div>
       <div class="card">
+        <h3>Mood</h3>
+        <div class="hero-num" style="font-size:36px;margin:4px 0">${moodAverage(7) ?? "—"}</div>
+        <p class="muted">Week average after a full session. Optional, 1 is low, 10 is great.</p>
+        <svg class="chart" viewBox="0 0 320 160">
+          ${moodHistory(7).map((d, i) => {
+            const x = 18 + i * 42;
+            const h = d.avg != null ? (d.avg / 10) * 110 : 2;
+            return html`<g key=${d.key}>
+              <rect x=${x} y=${130 - h} width="28" height=${Math.max(h, 2)} rx="6" fill=${d.avg != null ? "var(--accent)" : "var(--line)"} />
+              <text x=${x + 14} y="148" text-anchor="middle" font-size="9" fill="var(--muted)">${d.label}</text>
+            </g>`;
+          })}
+        </svg>
+        ${moodAverage(7) == null ? html`<div class="tiny">Log a mood when you finish every set.</div>` : null}
+      </div>
+      <div class="card">
         <div class="row space">
           <h3 style="margin:0">History</h3>
           <button class="btn ghost" style="min-height:36px" onClick=${() => setView("history")}>All</button>
@@ -176,7 +192,7 @@ function ProgressPage() {
           <div class="list-item" key=${s.id}>
             <div>
               <div style="font-weight:700">${s.status === "completed" ? "Completed" : s.status === "skipped" ? "Skipped" : "Open"}</div>
-              <div class="tiny">${new Date(s.startedAt).toLocaleString()}${s.skipReason ? " · " + s.skipReason : ""}</div>
+              <div class="tiny">${new Date(s.startedAt).toLocaleString()}${s.skipReason ? " · " + s.skipReason : ""}${s.mood != null ? " · mood " + s.mood : ""}</div>
             </div>
             <div class="tiny">${s.sets.filter((x) => x.completed).length} sets</div>
           </div>
@@ -198,7 +214,7 @@ function HistoryPage() {
         const canDelete = !isPhysio() && age < 24 * 3600 * 1000;
         return html`<div class="card" key=${s.id}>
           <div class="row space"><strong>${s.status}</strong><span class="tiny">${new Date(s.startedAt).toLocaleString()}</span></div>
-          <p class="muted">${s.sets.filter((x) => x.completed).length} sets logged${s.skipReason ? " · " + s.skipReason : ""}</p>
+          <p class="muted">${s.sets.filter((x) => x.completed).length} sets logged${s.skipReason ? " · " + s.skipReason : ""}${s.mood != null ? " · mood " + s.mood : ""}</p>
           ${canDelete && html`<button class="btn ghost full" onClick=${() => deleteSession(s.id)}>Delete mistaken session</button>`}
         </div>`;
       })}
@@ -231,6 +247,13 @@ function ProfilePage() {
         <div class="row space">
           <div><h3 style="margin:0">Night mode</h3><div class="tiny">Darker screen. Also on Today.</div></div>
           <button class=${"toggle " + (u.night ? "on" : "")} onClick=${() => setLook({ night: !u.night })} aria-pressed=${!!u.night}><i /></button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Text size</h3>
+        <p class="tiny">Words only. Buttons stay the same size to tap.</p>
+        <div class="grid4">
+          ${FONT_SCALES.map((f) => html`<button key=${f.id} class=${"chip center " + ((u.fontScale || "md") === f.id ? "on" : "")} onClick=${() => setLook({ fontScale: f.id })}>${f.label}</button>`)}
         </div>
       </div>
       <div class="card">
@@ -373,7 +396,7 @@ function App() {
     view === "profile" ? ProfilePage() :
     AuthPage();
   return html`
-    <div class=${"app " + (u?.oneHanded ? "one-handed" : "")} data-theme=${u?.theme || "clay"} data-wall=${u?.wall || "linen"} data-night=${u?.night ? "1" : "0"}>
+    <div class=${"app " + (u?.oneHanded ? "one-handed" : "")} data-theme=${u?.theme || "clay"} data-wall=${u?.wall || "linen"} data-night=${u?.night ? "1" : "0"} data-font=${u?.fontScale || "md"}>
       ${view !== "auth" && html`<div class="topbar"><div class="brand">Cappie<span class="dot">.</span></div><div class="tiny">${u?.role === "physio" ? "Clinician" : u?.role === "owner" ? "Athlete" : ""}</div></div>`}
       ${page}
       ${showTabs && html`
@@ -390,6 +413,7 @@ function App() {
 
 function renderApp() {
   hooks.cursor = 0;
+  applyChrome();
   render(App(), document.getElementById("root"));
 }
 

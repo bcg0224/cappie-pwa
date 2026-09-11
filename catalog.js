@@ -39,6 +39,13 @@ const WALLS = [
   { id: "meadow", label: "Meadow" }
 ];
 
+const FONT_SCALES = [
+  { id: "sm", label: "S" },
+  { id: "md", label: "M" },
+  { id: "lg", label: "L" },
+  { id: "xl", label: "XL" }
+];
+
 const SRC = "Heleen Groenewald · 4 Sep 2026";
 
 const EXERCISES = [
@@ -99,8 +106,8 @@ const TUTORIAL = [
   { title: "Today", body: "This is home. Start a session on a training day, or skip and tell Cappie why. Night mode sits at the top so the screen is easy in the evening." },
   { title: "A session", body: "Each exercise has a plain-language how-to written for residual and sound sides, a timer, and set counters. Read What needs to happen, then mark a set done when you finish it." },
   { title: "Plan", body: "Turn exercises on or off. Change sets and reps. Below-knee unlocks the chair and mat programme." },
-  { title: "Stats", body: "See how many exercises you logged each day, and whether each movement improved or declined over the week or month." },
-  { title: "Settings", body: "Theme, wallpaper, one-handed mode, and this tutorial live here. The period in Cappie. follows the theme colour. Changes save on this phone and to your cloud account." },
+  { title: "Stats", body: "See how many exercises you logged each day, whether each movement improved, and the mood you logged after finishing a full session." },
+  { title: "Settings", body: "Theme, wallpaper, night, text size, one-handed mode, and this tutorial live here. The period in Cappie. follows the theme colour. Changes save on this phone and to your cloud account." },
   {
     title: "On your Home Screen",
     body: "Add Cappie so it opens like any other app — full screen, with the mountain icon. Safari on iPhone, Chrome on Android.",
@@ -111,4 +118,4 @@ const TUTORIAL = [
   }
 ];
 
-export { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL };
+export { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, FONT_SCALES, EXERCISES, SKIP, TUTORIAL };

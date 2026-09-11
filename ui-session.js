@@ -7,7 +7,7 @@ import {
   startSession, logSet, finishSession, skipSession,
   timerSeconds, startTimer, pauseTimer, resetTimer,
   cloudEnabled, startOAuth, setRole, setLook, completeTutorial
-} from "./store.js?v=20260911d";
+} from "./store.js?v=20260911e";
 
 const hookBuckets = new Map();
 function preactState(init) {
@@ -239,6 +239,7 @@ function SessionPage() {
   const [idx, setIdx] = preactState(0);
   const [showSkip, setShowSkip] = preactState(false);
   const [openHow, setOpenHow] = preactState(true);
+  const [mood, setMood] = preactState(null);
   const open = sessions().find((s) => s.status === "in_progress");
   if (!open) {
     return html`<div class="page"><p class="muted">No open session.</p><button class="btn accent full" onClick=${() => setView("today")}>Back</button></div>`;
@@ -294,7 +295,16 @@ function SessionPage() {
         <button class="btn ghost" disabled=${idx === 0} onClick=${() => { setIdx(Math.max(0, idx - 1)); setOpenHow(true); }}>Previous</button>
         <button class="btn ghost" disabled=${idx >= groups.length - 1} onClick=${() => { setIdx(idx + 1); setOpenHow(true); }}>Next</button>
       </div>
-      <button class="btn accent full" style="margin-top:12px" onClick=${finishSession}>${allDone ? "Finish session" : "Finish remaining as-is"}</button>
+      ${allDone && !isPhysio() ? html`
+        <div class="card" style="margin-top:12px">
+          <h3>How did that feel?</h3>
+          <p class="muted">Optional. 1 is low, 10 is great. Skip if you would rather not say.</p>
+          <div class="grid5" style="margin:10px 0 12px">
+            ${[1,2,3,4,5,6,7,8,9,10].map((n) => html`<button key=${n} class=${"chip center " + (mood === n ? "on" : "")} onClick=${() => setMood(n)}>${n}</button>`)}
+          </div>
+          <button class="btn accent full" onClick=${() => finishSession(mood)}>Finish session</button>
+        </div>
+      ` : html`<button class="btn accent full" style="margin-top:12px" onClick=${() => finishSession(null)}>Finish remaining as-is</button>`}
       ${!isPhysio() && html`<button class="btn ghost full" style="margin-top:8px" onClick=${() => setShowSkip(true)}>Skip session</button>`}
       ${showSkip && html`
         <div class="card" style="margin-top:12px">

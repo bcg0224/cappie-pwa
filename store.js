@@ -1,4 +1,4 @@
-import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911d";
+import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, FONT_SCALES, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911e";
 import {
   cloudEnabled,
   oauthStart,
@@ -14,7 +14,7 @@ import {
   findInvite,
   pushLink,
   pullLinkForPhysio
-} from "./cloud.js?v=20260911d";
+} from "./cloud.js?v=20260911e";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -134,6 +134,22 @@ function exerciseTrends(periodDays) {
     return { exerciseId: p.exerciseId, curr, prev, pct, today, yesterday, dayPct };
   });
 }
+
+function moodHistory(n = 7) {
+  const days = daysBack(n);
+  const logged = sessions().filter((s) => s.status === "completed" && s.mood != null);
+  return days.map((d) => {
+    const key = dayKey(d);
+    const moods = logged.filter((s) => dayKey(s.startedAt) === key).map((s) => Number(s.mood));
+    const avg = moods.length ? Math.round((moods.reduce((a, b) => a + b, 0) / moods.length) * 10) / 10 : null;
+    return { date: d, key, label: DAYS[d.getDay()], avg, count: moods.length };
+  });
+}
+function moodAverage(n = 7) {
+  const vals = moodHistory(n).map((d) => d.avg).filter((v) => v != null);
+  if (!vals.length) return null;
+  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
+}
 function makeCode() {
   const a = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
@@ -156,6 +172,33 @@ function persist(db) {
   scheduleCloudPush();
 }
 
+const DAY_CANVAS = "#f7f3ee";
+const NIGHT_CANVAS = "#14181c";
+let zoomLocked = false;
+function lockZoom() {
+  if (zoomLocked || typeof document === "undefined") return;
+  zoomLocked = true;
+  const stop = (e) => e.preventDefault();
+  document.addEventListener("gesturestart", stop, { passive: false });
+  document.addEventListener("gesturechange", stop, { passive: false });
+  document.addEventListener("gestureend", stop, { passive: false });
+}
+function applyChrome() {
+  if (typeof document === "undefined") return;
+  lockZoom();
+  const u = me();
+  const night = !!u?.night;
+  const font = u?.fontScale || "md";
+  const root = document.documentElement;
+  const standalone = !!(window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone);
+  root.dataset.night = night ? "1" : "0";
+  root.dataset.font = font;
+  root.dataset.standalone = standalone ? "1" : "0";
+  root.style.colorScheme = night ? "dark" : "light";
+  const theme = document.querySelector('meta[name="theme-color"]');
+  if (theme) theme.setAttribute("content", night ? NIGHT_CANVAS : DAY_CANVAS);
+}
+
 function ownerBundle(id) {
   const u = state.db.users.find((x) => x.id === id);
   return {
@@ -171,7 +214,8 @@ function ownerBundle(id) {
           wall: u.wall || "linen",
           night: !!u.night,
           oneHanded: !!u.oneHanded,
-          tutorialSeen: !!u.tutorialSeen
+          tutorialSeen: !!u.tutorialSeen,
+          fontScale: u.fontScale || "md"
         }
       : null
   };
@@ -224,6 +268,7 @@ function setRenderer(fn) {
 }
 function refresh() {
   persist(state.db);
+  applyChrome();
   listeners.forEach((fn) => fn());
   renderUI();
 }
@@ -277,6 +322,7 @@ function bootView() {
   return "today";
 }
 state.view = bootView();
+if (typeof document !== "undefined") applyChrome();
 
 function applyAuthUser(authUser, provider) {
   const email = (authUser.email || "").toLowerCase();
@@ -295,6 +341,7 @@ function applyAuthUser(authUser, provider) {
       wall: "linen",
       night: false,
       tutorialSeen: false,
+      fontScale: "md",
       createdAt: new Date().toISOString()
     };
     state.db.users.push(user);
@@ -337,7 +384,8 @@ async function applyRemoteBundle(ownerKey, remote) {
             wall: p.look.wall || x.wall,
             night: p.look.night ?? x.night,
             oneHanded: p.look.oneHanded ?? x.oneHanded,
-            tutorialSeen: p.look.tutorialSeen ?? x.tutorialSeen
+            tutorialSeen: p.look.tutorialSeen ?? x.tutorialSeen,
+            fontScale: p.look.fontScale || x.fontScale || "md"
           }
         : x
     );
@@ -387,6 +435,7 @@ async function hydrateFromCloud() {
   }
   state.view = bootView();
   persist(state.db);
+  applyChrome();
   renderUI();
 }
 
@@ -450,7 +499,7 @@ async function signUp(email, password, displayName) {
     }
   }
   if (state.db.users.some((u) => u.email === e)) return "That email is already in use.";
-  const user = { id: uid(), email: e, password, displayName: name, role: null, provider: "email", oneHanded: false, theme: "clay", wall: "linen", night: false, tutorialSeen: false, createdAt: new Date().toISOString() };
+  const user = { id: uid(), email: e, password, displayName: name, role: null, provider: "email", oneHanded: false, theme: "clay", wall: "linen", night: false, tutorialSeen: false, fontScale: "md", createdAt: new Date().toISOString() };
   state.db.users.push(user);
   state.db.sessionUserId = user.id;
   state.view = "role";
@@ -619,7 +668,7 @@ function startSession() {
       exerciseId: p.exerciseId, setIndex: i, prescribedValue: p.prescribedValue, actualValue: p.prescribedValue, completed: false
     }))
   );
-  const session = { id: uid(), ownerId: id, startedAt: new Date().toISOString(), endedAt: null, status: "in_progress", skipReason: null, sets };
+  const session = { id: uid(), ownerId: id, startedAt: new Date().toISOString(), endedAt: null, status: "in_progress", skipReason: null, mood: null, sets };
   state.db.sessions[id] = [session, ...(state.db.sessions[id] || [])];
   state.timer = { running: false, startedAt: 0, elapsed: 0 };
   state.view = "session";
@@ -639,11 +688,14 @@ function logSet(exerciseId, setIndex, actual, completed) {
   });
   refresh();
 }
-function finishSession() {
+function finishSession(mood) {
   const id = ownerId();
   if (!id) return;
+  const value = mood == null || mood === "" ? null : Number(mood);
   state.db.sessions[id] = (state.db.sessions[id] || []).map((s) =>
-    s.status === "in_progress" ? { ...s, status: "completed", endedAt: new Date().toISOString() } : s
+    s.status === "in_progress"
+      ? { ...s, status: "completed", endedAt: new Date().toISOString(), mood: Number.isFinite(value) ? value : null }
+      : s
   );
   state.view = "today";
   refresh();
@@ -739,11 +791,11 @@ function joinWithCode(code) {
 
 
 export {
-  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL,
-  uid, exById, availableExercises, defaultPlan, weekStart, inThisWeek, dayKey, dailyExerciseCounts, exerciseTrends,
+  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, FONT_SCALES, EXERCISES, SKIP, TUTORIAL,
+  uid, exById, availableExercises, defaultPlan, weekStart, inThisWeek, dayKey, dailyExerciseCounts, exerciseTrends, moodHistory, moodAverage,
   state, hooks, setRenderer, refresh, subscribe, me, ownerId, profile, plan, sessions, note, link, isPhysio,
   setView, bootView, signUp, signIn, signOut, saveOnboarding, updateProfile, setOneHanded, setLook,
-  completeTutorial, reopenTutorial,
+  completeTutorial, reopenTutorial, applyChrome,
   timerSeconds, startTimer, pauseTimer, resetTimer,
   updatePlanItem, setNote, startSession, logSet, finishSession, skipSession, deleteSession,
   generateInvite, revokeInvite, unlink, joinWithCode,
