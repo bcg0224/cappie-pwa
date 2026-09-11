@@ -1,4 +1,4 @@
-import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP } from "./catalog.js";
+import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911c";
 import {
   cloudEnabled,
   oauthStart,
@@ -14,7 +14,7 @@ import {
   findInvite,
   pushLink,
   pullLinkForPhysio
-} from "./cloud.js";
+} from "./cloud.js?v=20260911c";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -73,6 +73,67 @@ function inThisWeek(iso) {
   const start = weekStart().getTime();
   return t >= start && t < start + 7 * 86400000;
 }
+function startOfDay(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function dayKey(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function daysBack(n) {
+  const out = [];
+  const today = startOfDay();
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    out.push(d);
+  }
+  return out;
+}
+function completedSets() {
+  return sessions().filter((s) => s.status === "completed").flatMap((s) =>
+    (s.sets || []).filter((set) => set.completed).map((set) => ({ ...set, at: s.startedAt }))
+  );
+}
+function dailyExerciseCounts(n = 7) {
+  const days = daysBack(n);
+  const sets = completedSets();
+  return days.map((d) => {
+    const key = dayKey(d);
+    const ids = new Set(sets.filter((s) => dayKey(s.at) === key).map((s) => s.exerciseId));
+    return { date: d, key, label: DAYS[d.getDay()], count: ids.size };
+  });
+}
+function volumeInRange(exerciseId, from, to) {
+  return completedSets()
+    .filter((s) => s.exerciseId === exerciseId && new Date(s.at) >= from && new Date(s.at) < to)
+    .reduce((n, s) => n + (s.actualValue || 0), 0);
+}
+function exerciseTrends(periodDays) {
+  const now = startOfDay();
+  const currFrom = new Date(now);
+  currFrom.setDate(currFrom.getDate() - (periodDays - 1));
+  const prevFrom = new Date(currFrom);
+  prevFrom.setDate(prevFrom.getDate() - periodDays);
+  const enabled = plan().filter((p) => p.enabled);
+  return enabled.map((p) => {
+    const curr = volumeInRange(p.exerciseId, currFrom, new Date(now.getTime() + 86400000));
+    const prev = volumeInRange(p.exerciseId, prevFrom, currFrom);
+    let pct = null;
+    if (prev > 0) pct = Math.round(((curr - prev) / prev) * 100);
+    else if (curr > 0) pct = "new";
+    const today = volumeInRange(p.exerciseId, now, new Date(now.getTime() + 86400000));
+    const yestDate = new Date(now);
+    yestDate.setDate(yestDate.getDate() - 1);
+    const yesterday = volumeInRange(p.exerciseId, yestDate, now);
+    let dayPct = null;
+    if (yesterday > 0) dayPct = Math.round(((today - yesterday) / yesterday) * 100);
+    else if (today > 0) dayPct = "new";
+    return { exerciseId: p.exerciseId, curr, prev, pct, today, yesterday, dayPct };
+  });
+}
 function makeCode() {
   const a = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
@@ -96,13 +157,23 @@ function persist(db) {
 }
 
 function ownerBundle(id) {
+  const u = state.db.users.find((x) => x.id === id);
   return {
     profile: dbSliceProfile(id),
     plan: state.db.plans[id] || [],
     sessions: state.db.sessions[id] || [],
     notes: state.db.notes[id] || null,
     invites: state.db.invites.filter((i) => i.ownerId === id),
-    links: state.db.links.filter((l) => l.ownerId === id)
+    links: state.db.links.filter((l) => l.ownerId === id),
+    look: u
+      ? {
+          theme: u.theme || "clay",
+          wall: u.wall || "linen",
+          night: !!u.night,
+          oneHanded: !!u.oneHanded,
+          tutorialSeen: !!u.tutorialSeen
+        }
+      : null
   };
 }
 function dbSliceProfile(id) {
@@ -202,6 +273,7 @@ function bootView() {
   if (!u.role) return "role";
   if (u.role === "physio") return state.db.physioTarget[u.id] ? "today" : "join";
   if (!state.db.profiles[u.id]?.onboarded) return "onboard";
+  if (!u.tutorialSeen) return "tutorial";
   return "today";
 }
 state.view = bootView();
@@ -221,6 +293,8 @@ function applyAuthUser(authUser, provider) {
       oneHanded: false,
       theme: "clay",
       wall: "linen",
+      night: false,
+      tutorialSeen: false,
       createdAt: new Date().toISOString()
     };
     state.db.users.push(user);
@@ -254,6 +328,20 @@ async function applyRemoteBundle(ownerKey, remote) {
     const others = state.db.links.filter((l) => l.ownerId !== ownerKey);
     state.db.links = [...others, ...p.links];
   }
+  if (p.look) {
+    state.db.users = state.db.users.map((x) =>
+      x.id === ownerKey
+        ? {
+            ...x,
+            theme: p.look.theme || x.theme,
+            wall: p.look.wall || x.wall,
+            night: p.look.night ?? x.night,
+            oneHanded: p.look.oneHanded ?? x.oneHanded,
+            tutorialSeen: p.look.tutorialSeen ?? x.tutorialSeen
+          }
+        : x
+    );
+  }
 }
 
 async function hydrateFromCloud() {
@@ -271,7 +359,9 @@ async function hydrateFromCloud() {
             role: row.role || x.role,
             oneHanded: !!row.one_handed,
             theme: row.theme || x.theme,
-            wall: row.wall || x.wall
+            wall: row.wall || x.wall,
+            night: x.night,
+            tutorialSeen: x.tutorialSeen
           }
         : x
     );
@@ -342,7 +432,7 @@ async function signUp(email, password, displayName) {
     }
   }
   if (state.db.users.some((u) => u.email === e)) return "That email is already in use.";
-  const user = { id: uid(), email: e, password, displayName: name, role: null, provider: "email", oneHanded: false, theme: "clay", wall: "linen", createdAt: new Date().toISOString() };
+  const user = { id: uid(), email: e, password, displayName: name, role: null, provider: "email", oneHanded: false, theme: "clay", wall: "linen", night: false, tutorialSeen: false, createdAt: new Date().toISOString() };
   state.db.users.push(user);
   state.db.sessionUserId = user.id;
   state.view = "role";
@@ -366,7 +456,9 @@ async function signIn(email, password) {
                 role: row.role || x.role,
                 oneHanded: !!row.one_handed,
                 theme: row.theme || x.theme,
-                wall: row.wall || x.wall
+                wall: row.wall || x.wall,
+                night: x.night,
+                tutorialSeen: x.tutorialSeen
               }
             : x
         );
@@ -408,7 +500,20 @@ function saveOnboarding(p) {
   state.db.profiles[u.id] = prof;
   state.db.plans[u.id] = defaultPlan(prof);
   state.db.sessions[u.id] = state.db.sessions[u.id] || [];
+  state.view = "tutorial";
+  refresh();
+}
+function completeTutorial() {
+  const u = me();
+  if (!u) return;
+  state.db.users = state.db.users.map((x) => (x.id === u.id ? { ...x, tutorialSeen: true } : x));
   state.view = "today";
+  refresh();
+}
+function reopenTutorial() {
+  const u = me();
+  if (!u) return;
+  state.view = "tutorial";
   refresh();
 }
 function updateProfile(patch) {
@@ -616,10 +721,11 @@ function joinWithCode(code) {
 
 
 export {
-  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP,
-  uid, exById, availableExercises, defaultPlan, weekStart, inThisWeek,
+  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL,
+  uid, exById, availableExercises, defaultPlan, weekStart, inThisWeek, dayKey, dailyExerciseCounts, exerciseTrends,
   state, hooks, setRenderer, refresh, subscribe, me, ownerId, profile, plan, sessions, note, link, isPhysio,
   setView, bootView, signUp, signIn, signOut, saveOnboarding, updateProfile, setOneHanded, setLook,
+  completeTutorial, reopenTutorial,
   timerSeconds, startTimer, pauseTimer, resetTimer,
   updatePlanItem, setNote, startSession, logSet, finishSession, skipSession, deleteSession,
   generateInvite, revokeInvite, unlink, joinWithCode,

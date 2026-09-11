@@ -294,7 +294,191 @@ label.field span {
   line-height: 1.4;
   margin-top: 16px;
 }
-.btn.oauth.google { background: #1f1f1f; }
+.btn.oauth.google {
+  background: #fff;
+  color: #1f1f1f;
+  border: 1px solid #dadce0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.g-mark { width: 18px; height: 18px; flex-shrink: 0; }
+
+.tabs button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.tab-ico {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.night-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.night-toggle svg { width: 16px; height: 16px; display: block; }
+.night-toggle.on {
+  background: var(--ink);
+  color: var(--canvas);
+  border-color: var(--ink);
+}
+
+.thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+}
+.photo-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.photo-strip::-webkit-scrollbar { display: none; }
+.photo-btn {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 14px;
+  overflow: hidden;
+  line-height: 0;
+}
+.photo-btn img {
+  display: block;
+  height: 200px;
+  width: auto;
+  max-width: min(100vw - 48px, 360px);
+  object-fit: cover;
+  border-radius: 14px;
+}
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 14, 0.92);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.lightbox img {
+  max-width: 100%;
+  max-height: 80dvh;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.lead {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+.how-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.how-list li {
+  margin: 0 0 8px;
+  line-height: 1.45;
+  font-size: 14px;
+}
+.how-list.compact li {
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.how-toggle {
+  width: 100%;
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: 44px;
+}
+
+.delta { font-weight: 800; font-size: 16px; }
+.delta.up { color: var(--teal); }
+.delta.down { color: var(--danger); }
+
+.app[data-night="1"] {
+  --canvas: #14181c;
+  --ink: #ece6de;
+  --muted: #9a9288;
+  --line: #2c343b;
+  --card: #1c2329;
+  --shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  --accent-soft: #3a2a22;
+  --teal-soft: #1d3330;
+  background: linear-gradient(180deg, #1a2026 0%, var(--canvas) 180px);
+}
+.app[data-night="1"][data-theme="forest"] { --accent-soft: #1d3330; }
+.app[data-night="1"][data-theme="ink"] { --accent-soft: #243038; }
+.app[data-night="1"][data-theme="dusk"] { --accent-soft: #322430; }
+.app[data-night="1"][data-wall="sand"] {
+  background:
+    radial-gradient(120% 80% at 0% 0%, #3a2a22 0%, transparent 55%),
+    linear-gradient(180deg, #1a2026 0%, var(--canvas) 180px);
+}
+.app[data-night="1"][data-wall="slate"] {
+  background:
+    radial-gradient(90% 70% at 100% 0%, #2a343a 0%, transparent 50%),
+    linear-gradient(180deg, #161c22 0%, var(--canvas) 200px);
+}
+.app[data-night="1"][data-wall="meadow"] {
+  background:
+    radial-gradient(80% 60% at 20% 0%, #1d3330 0%, transparent 55%),
+    linear-gradient(180deg, #161c1a 0%, var(--canvas) 200px);
+}
+.app[data-night="1"] .tabs {
+  background: rgba(20, 24, 28, 0.94);
+}
+.app[data-night="1"] .chip,
+.app[data-night="1"] input,
+.app[data-night="1"] select,
+.app[data-night="1"] textarea,
+.app[data-night="1"] .stepper button {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.app[data-night="1"] .chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.app[data-night="1"] .progress-bar { background: #2a3238; }
+.app[data-night="1"] .btn.ghost { color: var(--ink); }
+.app[data-night="1"] .btn.oauth.google {
+  background: #fff;
+  color: #1f1f1f;
+}
+.app[data-night="1"] .toggle { background: #3a4248; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
 .btn.oauth.apple { background: #000; }
 .or-line {
   display: flex;

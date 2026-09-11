@@ -1,14 +1,13 @@
-import { html, render } from "https://esm.sh/htm/preact/standalone";
+import { html } from "https://esm.sh/htm/preact/standalone";
 import {
-  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, SKIP,
-  exById, availableExercises, weekStart, inThisWeek,
-  state, hooks, subscribe, me, profile, plan, sessions, note, link, isPhysio,
-  setView, signUp, signIn, signOut, saveOnboarding, updateProfile, setOneHanded,
-  updatePlanItem, setNote, startSession, logSet, finishSession, skipSession, deleteSession,
-  generateInvite, revokeInvite, unlink, joinWithCode,
+  DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, SKIP, TUTORIAL,
+  exById, inThisWeek,
+  state, hooks, me, profile, plan, sessions, note, link, isPhysio,
+  setView, signUp, signIn, saveOnboarding,
+  startSession, logSet, finishSession, skipSession,
   timerSeconds, startTimer, pauseTimer, resetTimer,
-  cloudEnabled, startOAuth, setRole
-} from "./store.js";
+  cloudEnabled, startOAuth, setRole, setLook, completeTutorial
+} from "./store.js?v=20260911c";
 
 const hookBuckets = new Map();
 function preactState(init) {
@@ -22,6 +21,15 @@ function preactState(init) {
     if (typeof window !== "undefined" && window.__cappieRender) window.__cappieRender();
   };
   return [bucket[i], set];
+}
+
+function GoogleMark() {
+  return html`<svg class="g-mark" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.6 9.2c0-.6-.1-1.2-.2-1.8H9v3.4h4.8c-.2 1.1-.9 2-1.8 2.6v2.2h3c1.8-1.6 2.6-4 2.6-6.4z"/>
+    <path fill="#34A853" d="M9 18c2.4 0 4.5-.8 6-2.2l-3-2.2c-.8.6-1.9.9-3 .9-2.3 0-4.3-1.6-5-3.7H1v2.3C2.4 16.1 5.5 18 9 18z"/>
+    <path fill="#FBBC05" d="M4 10.8c-.2-.6-.3-1.2-.3-1.8S3.8 7.8 4 7.2V4.9H1C.4 6.1 0 7.5 0 9s.4 2.9 1 4.1l3-2.3z"/>
+    <path fill="#EA4335" d="M9 3.6c1.3 0 2.5.4 3.4 1.3L15 2.3C13.5.9 11.4 0 9 0 5.5 0 2.4 1.9 1 4.9l3 2.3C4.7 5.2 6.7 3.6 9 3.6z"/>
+  </svg>`;
 }
 
 function AuthPage() {
@@ -46,7 +54,7 @@ function AuthPage() {
       <div class="auth-hero">
         <div class="eyebrow">Training log</div>
         <h1>Cappie<span style="color:var(--accent)">.</span></h1>
-        <p class="muted">Home training for grip, bands, and below-knee work. Use email to create an account, then tap I train.</p>
+        <p class="muted">Home training for grip, bands, and below-knee work. Email or Google, then tap I train.</p>
       </div>
       <div class="card">
         <div class="row" style="margin-bottom:14px">
@@ -62,6 +70,12 @@ function AuthPage() {
           ${err && html`<p class="err">${err}</p>`}
           <button class="btn accent full" type="submit" disabled=${busy}>${busy ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
         </form>
+        ${cloudEnabled && html`
+          <div class="or-line"><span>or</span></div>
+          <button class="btn full oauth google" type="button" disabled=${busy} onClick=${async () => { setBusy(true); setErr(await startOAuth("google")); setBusy(false); }}>
+            <${GoogleMark} /> Continue with Google
+          </button>
+        `}
       </div>
       <p class="disclaimer">Cappie is a training log, not medical advice. Follow the limits your clinician gave you.</p>
     </div>
@@ -135,8 +149,29 @@ function OnboardingPage() {
   `;
 }
 
+function TutorialPage() {
+  hooks.key = "tutorial";
+  hooks.cursor = 0;
+  const [step, setStep] = preactState(0);
+  const t = TUTORIAL[step];
+  const last = step === TUTORIAL.length - 1;
+  return html`
+    <div class="page">
+      <div class="eyebrow">How Cappie works · ${step + 1} / ${TUTORIAL.length}</div>
+      <h2 style="margin:6px 0 10px">${t.title}</h2>
+      <div class="card">
+        <p class="muted" style="margin:0">${t.body}</p>
+      </div>
+      <div class="progress-bar" style="margin-bottom:16px"><span style=${{ width: ((step + 1) / TUTORIAL.length) * 100 + "%" }}></span></div>
+      <button class="btn accent full" onClick=${() => last ? completeTutorial() : setStep(step + 1)}>${last ? "Start using Cappie" : "Next"}</button>
+      <button class="btn ghost full" style="margin-top:8px" onClick=${completeTutorial}>Skip tutorial</button>
+    </div>
+  `;
+}
+
 function TodayPage() {
   const prof = profile();
+  const u = me();
   if (!prof) return html`<div class="page"><p class="muted">No profile.</p></div>`;
   const today = new Date().getDay();
   const weekSessions = sessions().filter((s) => s.status === "completed" && inThisWeek(s.startedAt));
@@ -150,7 +185,15 @@ function TodayPage() {
   const isDay = prof.trainingDays.includes(today);
   return html`
     <div class="page">
-      <div class="eyebrow">${DAYS[today]}</div>
+      <div class="row space" style="align-items:center;margin-bottom:4px">
+        <div class="eyebrow">${DAYS[today]}</div>
+        <button class=${"night-toggle " + (u?.night ? "on" : "")} onClick=${() => setLook({ night: !u.night })} aria-pressed=${!!u?.night} aria-label=${u?.night ? "Switch to day" : "Switch to night"}>
+          ${u?.night
+            ? html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5z"/></svg>`
+            : html`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`}
+          ${u?.night ? "Night" : "Day"}
+        </button>
+      </div>
       <div class="row space" style="align-items:flex-end;margin-bottom:12px">
         <div>
           <div class="hero-num">${done}<small>/ ${goal}</small></div>
@@ -175,7 +218,10 @@ function TodayPage() {
           const ex = exById(p.exerciseId);
           if (!ex) return null;
           return html`<div class="list-item" key=${p.exerciseId}>
-            <div><div style="font-weight:700">${ex.name}</div><div class="tiny">${p.sets} × ${p.prescribedValue} ${ex.metric}${ex.category === "band" ? " · " + p.bandLevel : ""}</div></div>
+            <div class="row" style="gap:12px;align-items:center;flex:1;min-width:0">
+              ${ex.photos?.[0] && html`<img class="thumb" src=${ex.photos[0]} alt="" />`}
+              <div><div style="font-weight:700">${ex.name}</div><div class="tiny">${p.sets} × ${p.prescribedValue} ${ex.metric}${ex.category === "band" ? " · " + p.bandLevel : ""}</div></div>
+            </div>
             <div class="tiny">${ex.position}</div>
           </div>`;
         })}
@@ -186,11 +232,26 @@ function TodayPage() {
   `;
 }
 
+function PhotoStrip({ photos, alt, onOpen }) {
+  if (!photos?.length) return null;
+  return html`
+    <div class="photo-strip">
+      ${photos.map((src) => html`
+        <button class="photo-btn" type="button" onClick=${() => onOpen(src)}>
+          <img src=${src} alt=${alt} />
+        </button>
+      `)}
+    </div>
+  `;
+}
+
 function SessionPage() {
   hooks.key = "session";
   hooks.cursor = 0;
   const [idx, setIdx] = preactState(0);
   const [showSkip, setShowSkip] = preactState(false);
+  const [openHow, setOpenHow] = preactState(true);
+  const [lite, setLite] = preactState(null);
   const open = sessions().find((s) => s.status === "in_progress");
   if (!open) {
     return html`<div class="page"><p class="muted">No open session.</p><button class="btn accent full" onClick=${() => setView("today")}>Back</button></div>`;
@@ -205,7 +266,17 @@ function SessionPage() {
     <div class="page">
       <div class="eyebrow">Exercise ${Math.min(idx + 1, groups.length)} / ${groups.length} · ${doneSets}/${open.sets.length} sets</div>
       <h2 style="margin:4px 0 8px">${ex?.name || "Session"}</h2>
-      <p class="muted">${ex?.cue}</p>
+      <${PhotoStrip} photos=${ex?.photos} alt=${ex?.name || ""} onOpen=${setLite} />
+      <p class="lead">${ex?.description || ex?.cue}</p>
+      ${ex?.how?.length && html`
+        <div class="card">
+          <button class="row space how-toggle" onClick=${() => setOpenHow(!openHow)}>
+            <h3 style="margin:0">What needs to happen</h3>
+            <span class="tiny">${openHow ? "Hide" : "Show"}</span>
+          </button>
+          ${openHow && html`<ol class="how-list">${ex.how.map((step) => html`<li key=${step}>${step}</li>`)}</ol>`}
+        </div>
+      `}
       <p class="tiny" style="margin-bottom:12px">${ex?.adaptation}${ex?.source ? " · " + ex.source : ""}</p>
       <div class="card">
         <div class="row space">
@@ -234,8 +305,8 @@ function SessionPage() {
         </div>
       `)}
       <div class="grid2">
-        <button class="btn ghost" disabled=${idx === 0} onClick=${() => setIdx(Math.max(0, idx - 1))}>Previous</button>
-        <button class="btn ghost" disabled=${idx >= groups.length - 1} onClick=${() => setIdx(idx + 1)}>Next</button>
+        <button class="btn ghost" disabled=${idx === 0} onClick=${() => { setIdx(Math.max(0, idx - 1)); setOpenHow(true); }}>Previous</button>
+        <button class="btn ghost" disabled=${idx >= groups.length - 1} onClick=${() => { setIdx(idx + 1); setOpenHow(true); }}>Next</button>
       </div>
       <button class="btn accent full" style="margin-top:12px" onClick=${finishSession}>${allDone ? "Finish session" : "Finish remaining as-is"}</button>
       ${!isPhysio() && html`<button class="btn ghost full" style="margin-top:8px" onClick=${() => setShowSkip(true)}>Skip session</button>`}
@@ -245,9 +316,14 @@ function SessionPage() {
           ${SKIP.map((r) => html`<button key=${r.id} class="chip" style="width:100%;margin-bottom:8px" onClick=${() => skipSession(r.id)}>${r.label}</button>`)}
         </div>
       `}
+      ${lite && html`
+        <div class="lightbox" onClick=${() => setLite(null)}>
+          <img src=${lite} alt=${ex?.name || ""} />
+          <div class="tiny" style="color:#fff;margin-top:8px">Tap to close</div>
+        </div>
+      `}
     </div>
   `;
 }
 
-
-export { AuthPage, RolePage, OnboardingPage, TodayPage, SessionPage, preactState };
+export { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState };

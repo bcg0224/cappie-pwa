@@ -5,9 +5,10 @@ import {
   state, hooks, setRenderer, subscribe, me, profile, plan, sessions, note, link, isPhysio,
   setView, signOut, updateProfile, setOneHanded, setLook,
   updatePlanItem, setNote, deleteSession,
-  generateInvite, revokeInvite, unlink, joinWithCode
-} from "./store.js";
-import { AuthPage, RolePage, OnboardingPage, TodayPage, SessionPage, preactState } from "./ui-session.js";
+  generateInvite, revokeInvite, unlink, joinWithCode,
+  dailyExerciseCounts, exerciseTrends, reopenTutorial
+} from "./store.js?v=20260911c";
+import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911c";
 
 function PlanPage() {
   hooks.key = "plan";
@@ -45,11 +46,15 @@ function PlanPage() {
         return html`
           <div class="card" key=${ex.id}>
             <div class="row space">
-              <div><h3 style="margin:0">${ex.name}</h3><div class="tiny">${ex.category} · ${ex.position}</div></div>
+              <div class="row" style="gap:12px;align-items:center;min-width:0">
+                ${ex.photos?.[0] && html`<img class="thumb" src=${ex.photos[0]} alt="" />`}
+                <div><h3 style="margin:0">${ex.name}</h3><div class="tiny">${ex.category} · ${ex.position}</div></div>
+              </div>
               <button class=${"toggle " + (item.enabled ? "on" : "")} onClick=${() => updatePlanItem(ex.id, { enabled: !item.enabled })}><i /></button>
             </div>
             ${item.enabled && html`
-              <p class="muted" style="margin:8px 0">${ex.cue}</p>
+              <p class="muted" style="margin:8px 0">${ex.description || ex.cue}</p>
+              ${ex.how?.length ? html`<ol class="how-list compact">${ex.how.slice(0, 3).map((s) => html`<li key=${s}>${s}</li>`)}</ol>` : null}
               <div class="row space" style="margin-bottom:8px">
                 <span class="tiny">Sets</span>
                 <div class="stepper">
@@ -87,95 +92,72 @@ function PlanPage() {
   `;
 }
 
-function weeksBack(n) {
-  const out = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = weekStart();
-    d.setDate(d.getDate() - i * 7);
-    out.push({ start: d, label: `${d.getMonth() + 1}/${d.getDate()}` });
-  }
-  return out;
+function deltaLabel(pct) {
+  if (pct === "new") return "New";
+  if (pct === null || pct === undefined) return "—";
+  if (pct > 0) return `+${pct}%`;
+  return `${pct}%`;
 }
 
 function ProgressPage() {
   hooks.key = "progress";
   hooks.cursor = 0;
-  const enabled = plan().filter((p) => p.enabled);
-  const [exId, setExId] = preactState(enabled[0]?.exerciseId || "");
-  const weeks = weeksBack(8);
-  const goal = profile()?.weeklySessionGoal || 3;
-  const sessionSeries = weeks.map((w) => {
-    const completed = sessions().filter((s) => {
-      const t = new Date(s.startedAt).getTime();
-      return s.status === "completed" && t >= w.start.getTime() && t < w.start.getTime() + 7 * 86400000;
-    }).length;
-    return { ...w, completed, goal };
-  });
-  const volumeSeries = weeks.map((w) => {
-    let vol = 0;
-    sessions().forEach((s) => {
-      const t = new Date(s.startedAt).getTime();
-      if (s.status !== "completed") return;
-      if (t < w.start.getTime() || t >= w.start.getTime() + 7 * 86400000) return;
-      s.sets.forEach((set) => {
-        if (set.exerciseId === exId && set.completed) vol += set.actualValue;
-      });
-    });
-    return { ...w, vol };
-  });
-  const thisWeek = sessionSeries[sessionSeries.length - 1];
-  const pct = Math.min(100, Math.round(((thisWeek?.completed || 0) / Math.max(goal, 1)) * 100));
-  const maxBar = Math.max(goal, ...sessionSeries.map((s) => s.completed), 1);
-  const maxVol = Math.max(...volumeSeries.map((s) => s.vol), 1);
-  const history = [...sessions()].sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt));
+  const [period, setPeriod] = preactState(7);
+  const days = dailyExerciseCounts(7);
+  const maxDay = Math.max(1, ...days.map((d) => d.count));
+  const trends = exerciseTrends(period);
+  const todayCount = days[days.length - 1]?.count || 0;
   return html`
     <div class="page">
-      <div class="eyebrow">Progress</div>
-      <div class="hero-num" style="margin:6px 0 4px">${pct}<small>%</small></div>
-      <p class="muted">Adherence this week · ${thisWeek?.completed || 0} of ${goal} sessions</p>
+      <div class="eyebrow">Stats</div>
+      <div class="hero-num" style="margin:6px 0 4px">${todayCount}</div>
+      <p class="muted">Exercises logged today</p>
       <div class="card">
-        <h3>Sessions vs goal</h3>
+        <h3>Exercises per day</h3>
         <svg class="chart" viewBox="0 0 320 160">
-          ${sessionSeries.map((s, i) => {
-            const x = 16 + i * 36;
-            const hGoal = (s.goal / maxBar) * 110;
-            const hDone = (s.completed / maxBar) * 110;
-            return html`<g key=${s.label}>
-              <rect x=${x} y=${130 - hGoal} width="28" height=${hGoal} rx="6" fill="#ece6df" />
-              <rect x=${x} y=${130 - hDone} width="28" height=${hDone} rx="6" fill="#C45C26" />
-              <text x=${x + 14} y="148" text-anchor="middle" font-size="9" fill="#5c5c5c">${s.label}</text>
+          ${days.map((d, i) => {
+            const x = 18 + i * 42;
+            const h = (d.count / maxDay) * 110;
+            return html`<g key=${d.key}>
+              <rect x=${x} y=${130 - h} width="28" height=${Math.max(h, 2)} rx="6" fill="var(--accent)" />
+              <text x=${x + 14} y="148" text-anchor="middle" font-size="9" fill="var(--muted)">${d.label}</text>
             </g>`;
           })}
         </svg>
-        <div class="tiny">Grey = goal · terracotta = completed</div>
+        <div class="tiny">Distinct exercises with a completed set</div>
       </div>
       <div class="card">
         <div class="row space">
-          <h3 style="margin:0">Per exercise</h3>
-          <select value=${exId} onChange=${(e) => setExId(e.target.value)} style="width:auto">
-            ${enabled.map((p) => html`<option value=${p.exerciseId}>${exById(p.exerciseId)?.name}</option>`)}
-          </select>
+          <h3 style="margin:0">Improvement</h3>
+          <div class="row" style="gap:6px">
+            <button class=${"chip " + (period === 7 ? "on" : "")} onClick=${() => setPeriod(7)}>Week</button>
+            <button class=${"chip " + (period === 30 ? "on" : "")} onClick=${() => setPeriod(30)}>Month</button>
+          </div>
         </div>
-        <svg class="chart" viewBox="0 0 320 160">
-          ${volumeSeries.map((s, i) => {
-            const x = 20 + i * 38;
-            const y = 130 - (s.vol / maxVol) * 110;
-            const next = volumeSeries[i + 1];
-            return html`<g key=${s.label}>
-              ${next && html`<line x1=${x} y1=${y} x2=${x + 38} y2=${130 - (next.vol / maxVol) * 110} stroke="#C45C26" stroke-width="3" />`}
-              <circle cx=${x} cy=${y} r="4" fill="#1E3A4C" />
-              <text x=${x} y="148" text-anchor="middle" font-size="9" fill="#5c5c5c">${s.label}</text>
-            </g>`;
-          })}
-        </svg>
-        <div class="tiny">Completed reps or seconds for the selected exercise</div>
+        <p class="tiny" style="margin:8px 0 12px">This ${period === 7 ? "week" : "month"} vs the ${period === 7 ? "week" : "month"} before. Day column is today vs yesterday.</p>
+        ${trends.map((t) => {
+          const ex = exById(t.exerciseId);
+          const up = t.pct === "new" || (t.pct || 0) > 0;
+          const down = typeof t.pct === "number" && t.pct < 0;
+          return html`<div class="list-item" key=${t.exerciseId}>
+            <div>
+              <div style="font-weight:700">${ex?.name}</div>
+              <div class="tiny">Load ${t.curr} · prior ${t.prev} · today ${t.today}</div>
+            </div>
+            <div style="text-align:right">
+              <div class=${"delta " + (up ? "up" : down ? "down" : "")}>${deltaLabel(t.pct)}</div>
+              <div class="tiny">day ${deltaLabel(t.dayPct)}</div>
+            </div>
+          </div>`;
+        })}
+        ${!trends.length && html`<p class="muted">Turn on exercises in Plan to track them.</p>`}
       </div>
       <div class="card">
         <div class="row space">
           <h3 style="margin:0">History</h3>
           <button class="btn ghost" style="min-height:36px" onClick=${() => setView("history")}>All</button>
         </div>
-        ${history.slice(0, 5).map((s) => html`
+        ${[...sessions()].sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt)).slice(0, 5).map((s) => html`
           <div class="list-item" key=${s.id}>
             <div>
               <div style="font-weight:700">${s.status === "completed" ? "Completed" : s.status === "skipped" ? "Skipped" : "Open"}</div>
@@ -184,7 +166,7 @@ function ProgressPage() {
             <div class="tiny">${s.sets.filter((x) => x.completed).length} sets</div>
           </div>
         `)}
-        ${!history.length && html`<p class="muted">No sessions yet.</p>`}
+        ${!sessions().length && html`<p class="muted">No sessions yet.</p>`}
       </div>
     </div>
   `;
@@ -209,6 +191,14 @@ function HistoryPage() {
   `;
 }
 
+function TabGlyph({ name }) {
+  const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true", class: "tab-ico" };
+  if (name === "today") return html`<svg ...${common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
+  if (name === "plan") return html`<svg ...${common}><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>`;
+  if (name === "stats") return html`<svg ...${common}><path d="M5 20V10M12 20V4M19 20v-7"/></svg>`;
+  return html`<svg ...${common}><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`;
+}
+
 function ProfilePage() {
   hooks.key = "profile";
   hooks.cursor = 0;
@@ -219,9 +209,15 @@ function ProfilePage() {
   if (!u) return html`<div class="page"></div>`;
   return html`
     <div class="page">
-      <div class="eyebrow">Profile</div>
+      <div class="eyebrow">Settings</div>
       <h2 style="margin-top:4px">${u.displayName}</h2>
       <p class="muted">${u.email} · ${u.role === "owner" ? "Athlete" : "Clinician"}</p>
+      <div class="card">
+        <div class="row space">
+          <div><h3 style="margin:0">Night mode</h3><div class="tiny">Darker screen. Also on Today.</div></div>
+          <button class=${"toggle " + (u.night ? "on" : "")} onClick=${() => setLook({ night: !u.night })} aria-pressed=${!!u.night}><i /></button>
+        </div>
+      </div>
       <div class="card">
         <div class="row space">
           <div><h3 style="margin:0">One-handed mode</h3><div class="tiny">Larger tap targets. No drag gestures.</div></div>
@@ -239,6 +235,11 @@ function ProfilePage() {
         <div class="grid2">
           ${WALLS.map((w) => html`<button key=${w.id} class=${"chip " + ((u.wall || "linen") === w.id ? "on" : "")} onClick=${() => setLook({ wall: w.id })}>${w.label}</button>`)}
         </div>
+      </div>
+      <div class="card">
+        <h3>How Cappie works</h3>
+        <p class="muted">A short walkthrough of Today, a session, Plan, Stats, and Settings.</p>
+        <button class="btn ghost full" onClick=${reopenTutorial}>Replay tutorial</button>
       </div>
       ${u.role === "owner" && html`
         <div class="card">
@@ -332,11 +333,12 @@ function JoinPage() {
 function App() {
   const view = state.view;
   const u = me();
-  const showTabs = !!u && !["auth", "role", "onboard", "join", "session", "share", "history"].includes(view);
+  const showTabs = !!u && !["auth", "role", "onboard", "join", "session", "share", "history", "tutorial"].includes(view);
   const page =
     view === "auth" ? AuthPage() :
     view === "role" ? RolePage() :
     view === "onboard" ? OnboardingPage() :
+    view === "tutorial" ? TutorialPage() :
     view === "join" ? JoinPage() :
     view === "today" ? TodayPage() :
     view === "session" ? SessionPage() :
@@ -347,15 +349,15 @@ function App() {
     view === "profile" ? ProfilePage() :
     AuthPage();
   return html`
-    <div class=${"app " + (u?.oneHanded ? "one-handed" : "")} data-theme=${u?.theme || "clay"} data-wall=${u?.wall || "linen"}>
+    <div class=${"app " + (u?.oneHanded ? "one-handed" : "")} data-theme=${u?.theme || "clay"} data-wall=${u?.wall || "linen"} data-night=${u?.night ? "1" : "0"}>
       ${view !== "auth" && html`<div class="topbar"><div class="brand">Ca<span>ppie</span></div><div class="tiny">${u?.role === "physio" ? "Clinician" : u?.role === "owner" ? "Athlete" : ""}</div></div>`}
       ${page}
       ${showTabs && html`
         <nav class="tabs">
-          <button class=${view === "today" ? "on" : ""} onClick=${() => setView("today")}>Today</button>
-          <button class=${view === "plan" ? "on" : ""} onClick=${() => setView("plan")}>Plan</button>
-          <button class=${view === "progress" ? "on" : ""} onClick=${() => setView("progress")}>Progress</button>
-          <button class=${view === "profile" ? "on" : ""} onClick=${() => setView("profile")}>Profile</button>
+          <button class=${view === "today" ? "on" : ""} onClick=${() => setView("today")}><${TabGlyph} name="today" />Today</button>
+          <button class=${view === "plan" ? "on" : ""} onClick=${() => setView("plan")}><${TabGlyph} name="plan" />Plan</button>
+          <button class=${view === "progress" ? "on" : ""} onClick=${() => setView("progress")}><${TabGlyph} name="stats" />Stats</button>
+          <button class=${view === "profile" ? "on" : ""} onClick=${() => setView("profile")}><${TabGlyph} name="settings" />Settings</button>
         </nav>
       `}
     </div>
