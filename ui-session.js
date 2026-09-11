@@ -7,7 +7,7 @@ import {
   startSession, logSet, finishSession, skipSession,
   timerSeconds, startTimer, pauseTimer, resetTimer,
   cloudEnabled, startOAuth, setRole, setLook, completeTutorial
-} from "./store.js?v=20260911c";
+} from "./store.js?v=20260911d";
 
 const hookBuckets = new Map();
 function preactState(init) {
@@ -53,10 +53,16 @@ function AuthPage() {
     <div class="page" style="padding-top:0">
       <div class="auth-hero">
         <div class="eyebrow">Training log</div>
-        <h1>Cappie<span style="color:var(--accent)">.</span></h1>
-        <p class="muted">Home training for grip, bands, and below-knee work. Email or Google, then tap I train.</p>
+        <h1>Cappie<span class="dot">.</span></h1>
+        <p class="muted">Home training for grip, bands, and below-knee work. Google, or email as backup, then tap I train.</p>
       </div>
       <div class="card">
+        ${cloudEnabled && html`
+          <button class="btn full oauth google" type="button" disabled=${busy} onClick=${async () => { setBusy(true); setErr(await startOAuth("google")); setBusy(false); }}>
+            <${GoogleMark} /> Continue with Google
+          </button>
+          <div class="or-line"><span>or email</span></div>
+        `}
         <div class="row" style="margin-bottom:14px">
           <button class=${"chip " + (mode === "up" ? "on" : "")} onClick=${() => setMode("up")}>Create account</button>
           <button class=${"chip " + (mode === "in" ? "on" : "")} onClick=${() => setMode("in")}>Sign in</button>
@@ -68,14 +74,8 @@ function AuthPage() {
           <label class="field"><span>Email</span><input type="email" value=${email} onInput=${(e) => setEmail(e.target.value)} placeholder="you@email.com" autocomplete="email" /></label>
           <label class="field"><span>Password</span><input type="password" value=${password} onInput=${(e) => setPassword(e.target.value)} autocomplete=${mode === "up" ? "new-password" : "current-password"} /></label>
           ${err && html`<p class="err">${err}</p>`}
-          <button class="btn accent full" type="submit" disabled=${busy}>${busy ? "Please wait…" : mode === "in" ? "Sign in" : "Create account"}</button>
+          <button class="btn accent full" type="submit" disabled=${busy}>${busy ? "Please wait…" : mode === "in" ? "Sign in with email" : "Create email account"}</button>
         </form>
-        ${cloudEnabled && html`
-          <div class="or-line"><span>or</span></div>
-          <button class="btn full oauth google" type="button" disabled=${busy} onClick=${async () => { setBusy(true); setErr(await startOAuth("google")); setBusy(false); }}>
-            <${GoogleMark} /> Continue with Google
-          </button>
-        `}
       </div>
       <p class="disclaimer">Cappie is a training log, not medical advice. Follow the limits your clinician gave you.</p>
     </div>
@@ -161,6 +161,7 @@ function TutorialPage() {
       <h2 style="margin:6px 0 10px">${t.title}</h2>
       <div class="card">
         <p class="muted" style="margin:0">${t.body}</p>
+        ${t.steps?.length ? html`<ol class="how-list">${t.steps.map((s) => html`<li key=${s}>${s}</li>`)}</ol>` : null}
       </div>
       <div class="progress-bar" style="margin-bottom:16px"><span style=${{ width: ((step + 1) / TUTORIAL.length) * 100 + "%" }}></span></div>
       <button class="btn accent full" onClick=${() => last ? completeTutorial() : setStep(step + 1)}>${last ? "Start using Cappie" : "Next"}</button>
@@ -218,9 +219,9 @@ function TodayPage() {
           const ex = exById(p.exerciseId);
           if (!ex) return null;
           return html`<div class="list-item" key=${p.exerciseId}>
-            <div class="row" style="gap:12px;align-items:center;flex:1;min-width:0">
-              ${ex.photos?.[0] && html`<img class="thumb" src=${ex.photos[0]} alt="" />`}
-              <div><div style="font-weight:700">${ex.name}</div><div class="tiny">${p.sets} × ${p.prescribedValue} ${ex.metric}${ex.category === "band" ? " · " + p.bandLevel : ""}</div></div>
+            <div>
+              <div style="font-weight:700">${ex.name}</div>
+              <div class="tiny">${p.sets} × ${p.prescribedValue} ${ex.metric}${ex.category === "band" ? " · " + p.bandLevel : ""}</div>
             </div>
             <div class="tiny">${ex.position}</div>
           </div>`;
@@ -232,26 +233,12 @@ function TodayPage() {
   `;
 }
 
-function PhotoStrip({ photos, alt, onOpen }) {
-  if (!photos?.length) return null;
-  return html`
-    <div class="photo-strip">
-      ${photos.map((src) => html`
-        <button class="photo-btn" type="button" onClick=${() => onOpen(src)}>
-          <img src=${src} alt=${alt} />
-        </button>
-      `)}
-    </div>
-  `;
-}
-
 function SessionPage() {
   hooks.key = "session";
   hooks.cursor = 0;
   const [idx, setIdx] = preactState(0);
   const [showSkip, setShowSkip] = preactState(false);
   const [openHow, setOpenHow] = preactState(true);
-  const [lite, setLite] = preactState(null);
   const open = sessions().find((s) => s.status === "in_progress");
   if (!open) {
     return html`<div class="page"><p class="muted">No open session.</p><button class="btn accent full" onClick=${() => setView("today")}>Back</button></div>`;
@@ -266,7 +253,6 @@ function SessionPage() {
     <div class="page">
       <div class="eyebrow">Exercise ${Math.min(idx + 1, groups.length)} / ${groups.length} · ${doneSets}/${open.sets.length} sets</div>
       <h2 style="margin:4px 0 8px">${ex?.name || "Session"}</h2>
-      <${PhotoStrip} photos=${ex?.photos} alt=${ex?.name || ""} onOpen=${setLite} />
       <p class="lead">${ex?.description || ex?.cue}</p>
       ${ex?.how?.length && html`
         <div class="card">
@@ -314,12 +300,6 @@ function SessionPage() {
         <div class="card" style="margin-top:12px">
           <h3>Why skip?</h3>
           ${SKIP.map((r) => html`<button key=${r.id} class="chip" style="width:100%;margin-bottom:8px" onClick=${() => skipSession(r.id)}>${r.label}</button>`)}
-        </div>
-      `}
-      ${lite && html`
-        <div class="lightbox" onClick=${() => setLite(null)}>
-          <img src=${lite} alt=${ex?.name || ""} />
-          <div class="tiny" style="color:#fff;margin-top:8px">Tap to close</div>
         </div>
       `}
     </div>

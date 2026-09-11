@@ -10,50 +10,53 @@ The running build is static HTML + ES modules (`ui.js`, `ui-session.js`, `store.
 
 ## What is in v1
 
-- Multi-limb profile. Below-knee selection unlocks the Heleen Groenewald BKA set (4 Sep 2026), with cropped sheet photos and a how-to on every exercise.
+- Multi-limb profile. Below-knee selection unlocks the Heleen Groenewald BKA set (4 Sep 2026). Every exercise has a how-to written for residual and sound sides (published BKA and hand-therapy programmes).
 - Equipment filter: grippers, pinch block, putty, bands, chair, mat.
 - Training days, weekly session goal, reps / holds, skip reasons.
-- Session timer and exercise descriptions (Dead bug and the rest).
+- Session timer.
 - Stats: exercises per day, week/month improvement vs the period before, today vs yesterday.
 - Clinician invite code (one linked physio).
+- Wordmark **Cappie.** — the period follows the theme colour.
+- Mountain app icon for the Home Screen (iOS 180 PNG, Android 192/512 + maskable).
 - Themes (Clay, Forest, Ink, Dusk), wallpapers, night mode. Settings save on the phone and to the cloud account.
 - Optional one-handed mode.
-- Short tutorial after first setup; replay it from Settings.
-- Email accounts on Supabase. Role is chosen after sign-in: I train / I’m a clinician.
-- Google Sign-in is in the app. It works after the Google Cloud + Supabase steps below.
+- Tutorial after first setup, including Add to Home Screen for iPhone (Safari) and Android (Chrome). Replay from Settings.
+- Google Sign-in first. Email / password on the same Supabase project is the backup.
 
 ## Dad can log in today (email)
 
-Email works as soon as confirm-email is off in Supabase.
+Email works as soon as confirm-email is off in Supabase. If Google shows “not switched on yet”, use email — it is the same cloud account.
 
 1. Supabase → Authentication → Providers → Email: enabled.
-2. Authentication → Sign In / Providers → **Confirm email: off** (otherwise he waits on a mail link).
+2. Authentication → Sign In / Providers → **Confirm email: off**.
 3. Authentication → URL Configuration:
    - Site URL = `https://bcg0224.github.io`
    - Redirect URLs include `https://bcg0224.github.io` and `https://bcg0224.github.io/`
-4. On his phone open https://bcg0224.github.io/ → **Create account** → name, email, password (6+ characters) → **I train** → select amputated limbs (below knee unlocks the home program) → chair + mat → training days → walk through the tutorial → start.
+4. On his phone open https://bcg0224.github.io/ → email account → **I train** → limbs (below knee unlocks the home program) → chair + mat → training days → tutorial → start.
 
-He can add the site to the Home Screen. Same email on another phone keeps the log. Theme, night mode, and the tutorial flag save automatically.
+Add to Home Screen from the tutorial or Settings. Same email on another phone keeps the log.
 
 ## Google Sign-in
 
-The **Continue with Google** button is live. Google will error until this is done once in Google Cloud and Supabase.
+The button is first on the account screen. Until Google is enabled in Supabase it will say so in plain language and leave email as the backup.
+
+The JSON error `Unsupported provider: provider is not enabled` means the Google provider toggle is still off.
 
 ### A. Google Cloud Console
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/apis/credentials) and pick (or create) a project.
-2. APIs & Services → OAuth consent screen. User type **External**. App name **Cappie**. Add your Gmail as a test user.
+2. APIs & Services → OAuth consent screen. User type **External**. App name **Cappie**. Add the Gmail accounts that will test as test users.
 3. APIs & Services → Credentials → **Create credentials** → **OAuth client ID** → Application type **Web application**.
 4. Authorized JavaScript origins:
    - `https://bcg0224.github.io`
    - `https://obchkmxbamqaxkmulmmp.supabase.co`
-5. Authorized redirect URIs (this exact path, nothing else):
+5. Authorized redirect URIs (this exact path):
    - `https://obchkmxbamqaxkmulmmp.supabase.co/auth/v1/callback`
 6. Create. Copy the **Client ID** and **Client secret**.
 
 ### B. Supabase
 
-1. Authentication → Providers → **Google** → enable.
+1. Authentication → Providers → **Google** → **Enable**.
 2. Paste Client ID and Client secret. Save.
 3. Authentication → URL Configuration: Site URL `https://bcg0224.github.io`. Redirect URLs include that origin.
 
@@ -61,4 +64,4 @@ After that, **Continue with Google** on https://bcg0224.github.io/ signs in, the
 
 ## Catalog credit
 
-Below-knee mat and chair work is transcribed from sheets provided by Heleen Groenewald, 4 Sep 2026. Photos are cropped from those sheets at source resolution (not upscaled). Cappie is a log, not medical advice.
+Below-knee mat and chair work follows sheets provided by Heleen Groenewald, 4 Sep 2026, with how-to language aligned to published BKA home programmes (Saskatchewan Health Authority, MyHealth Alberta, Singapore General Hospital physiotherapy, Premier Surgical). Grip work follows standard hand-therapy putty and pinch patterns. Cappie is a log, not medical advice.

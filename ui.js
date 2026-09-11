@@ -7,8 +7,24 @@ import {
   updatePlanItem, setNote, deleteSession,
   generateInvite, revokeInvite, unlink, joinWithCode,
   dailyExerciseCounts, exerciseTrends, reopenTutorial
-} from "./store.js?v=20260911c";
-import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911c";
+} from "./store.js?v=20260911d";
+import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911d";
+
+let installPrompt = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installPrompt = e;
+    if (window.__cappieRender) window.__cappieRender();
+  });
+}
+async function installApp() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  try { await installPrompt.userChoice; } catch {}
+  installPrompt = null;
+  if (window.__cappieRender) window.__cappieRender();
+}
 
 function PlanPage() {
   hooks.key = "plan";
@@ -47,8 +63,7 @@ function PlanPage() {
           <div class="card" key=${ex.id}>
             <div class="row space">
               <div class="row" style="gap:12px;align-items:center;min-width:0">
-                ${ex.photos?.[0] && html`<img class="thumb" src=${ex.photos[0]} alt="" />`}
-                <div><h3 style="margin:0">${ex.name}</h3><div class="tiny">${ex.category} · ${ex.position}</div></div>
+              <div><h3 style="margin:0">${ex.name}</h3><div class="tiny">${ex.category} · ${ex.position}</div></div>
               </div>
               <button class=${"toggle " + (item.enabled ? "on" : "")} onClick=${() => updatePlanItem(ex.id, { enabled: !item.enabled })}><i /></button>
             </div>
@@ -237,8 +252,17 @@ function ProfilePage() {
         </div>
       </div>
       <div class="card">
+        <h3>On your Home Screen</h3>
+        <p class="muted">Add Cappie so it opens like any other app, with the mountain icon.</p>
+        <ol class="how-list">
+          <li><strong>iPhone.</strong> Open this page in Safari (not Chrome). Tap Share — the square with the arrow — then Add to Home Screen, then Add.</li>
+          <li><strong>Android.</strong> Open this page in Chrome. Tap the three-dot menu, then Add to Home screen or Install app, then Add.</li>
+        </ol>
+        ${installPrompt && html`<button class="btn accent full" style="margin-top:8px" onClick=${installApp}>Install Cappie</button>`}
+      </div>
+      <div class="card">
         <h3>How Cappie works</h3>
-        <p class="muted">A short walkthrough of Today, a session, Plan, Stats, and Settings.</p>
+        <p class="muted">A short walkthrough of Today, a session, Plan, Stats, Settings, and adding Cappie to the Home Screen.</p>
         <button class="btn ghost full" onClick=${reopenTutorial}>Replay tutorial</button>
       </div>
       ${u.role === "owner" && html`
@@ -350,7 +374,7 @@ function App() {
     AuthPage();
   return html`
     <div class=${"app " + (u?.oneHanded ? "one-handed" : "")} data-theme=${u?.theme || "clay"} data-wall=${u?.wall || "linen"} data-night=${u?.night ? "1" : "0"}>
-      ${view !== "auth" && html`<div class="topbar"><div class="brand">Ca<span>ppie</span></div><div class="tiny">${u?.role === "physio" ? "Clinician" : u?.role === "owner" ? "Athlete" : ""}</div></div>`}
+      ${view !== "auth" && html`<div class="topbar"><div class="brand">Cappie<span class="dot">.</span></div><div class="tiny">${u?.role === "physio" ? "Clinician" : u?.role === "owner" ? "Athlete" : ""}</div></div>`}
       ${page}
       ${showTabs && html`
         <nav class="tabs">

@@ -1,4 +1,4 @@
-import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911c";
+import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911d";
 import {
   cloudEnabled,
   oauthStart,
@@ -14,7 +14,7 @@ import {
   findInvite,
   pushLink,
   pullLinkForPhysio
-} from "./cloud.js?v=20260911c";
+} from "./cloud.js?v=20260911d";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -392,12 +392,30 @@ async function hydrateFromCloud() {
 
 hydrateFromCloud().catch(() => {});
 
+function friendlyAuthError(err) {
+  let raw = err?.message || err?.msg || err?.error_description || "";
+  if (typeof raw === "object") raw = JSON.stringify(raw);
+  const trimmed = String(raw || "").trim();
+  let parsed = null;
+  if (trimmed.startsWith("{")) {
+    try { parsed = JSON.parse(trimmed); } catch { parsed = null; }
+  }
+  const text = String(parsed?.msg || parsed?.error_description || parsed?.message || trimmed).toLowerCase();
+  if (text.includes("provider is not enabled") || text.includes("unsupported provider")) {
+    return "Google is not switched on for this app yet. Use email below — it saves to the same Cappie cloud account.";
+  }
+  if (text.includes("popup") || text.includes("redirect")) {
+    return "Google sign-in did not finish. Try again, or use email.";
+  }
+  return parsed?.msg || trimmed || "Could not start sign-in.";
+}
+
 async function startOAuth(provider) {
   try {
     await oauthStart(provider);
     return null;
   } catch (err) {
-    return err?.message || "Could not start sign-in.";
+    return friendlyAuthError(err);
   }
 }
 
