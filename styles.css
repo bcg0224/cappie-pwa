@@ -46,6 +46,11 @@ html, body, #root {
   background: var(--canvas);
   overscroll-behavior-y: none;
 }
+#root {
+  transform: translateY(var(--ptr-shift, 0px));
+  transition: transform 0.18s ease-out;
+}
+html.ptr-dragging #root { transition: none; }
 body {
   font-family: var(--font);
   font-size: calc(16px * var(--fs));
@@ -499,4 +504,50 @@ label.field span {
   flex: 1;
   height: 1px;
   background: var(--line);
+}
+
+.ptr {
+  position: fixed;
+  top: calc(var(--safe-top) + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+html.ptr-active .ptr {
+  opacity: 1;
+  transform: none;
+}
+.ptr-mark {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+}
+html.ptr-busy .ptr-mark,
+.ptr[data-state="busy"] .ptr-mark {
+  animation: ptr-spin 0.7s linear infinite;
+}
+.ptr[data-state="done"] .ptr-mark {
+  border-top-color: var(--teal);
+  animation: none;
+}
+.ptr-label {
+  font-size: calc(11px * var(--fs));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+@keyframes ptr-spin {
+  to { transform: rotate(360deg); }
 }

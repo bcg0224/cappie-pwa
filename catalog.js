@@ -110,7 +110,7 @@ const TUTORIAL = [
   { title: "Settings", body: "Theme, wallpaper, night, text size, one-handed mode, and this tutorial live here. The period in Cappie. follows the theme colour. Changes save on this phone and to your cloud account." },
   {
     title: "On your Home Screen",
-    body: "Add Cappie so it opens like any other app — full screen, with the mountain icon. Safari on iPhone, Chrome on Android.",
+    body: "Add Cappie so it opens like any other app — full screen, with the mountain icon. Safari on iPhone, Chrome on Android. Pull down from the top later to load an update.",
     steps: [
       "iPhone: open this page in Safari (Chrome cannot add it). Tap Share — the square with the arrow. Scroll and tap Add to Home Screen. Tap Add.",
       "Android: open this page in Chrome. Tap the three-dot menu. Tap Add to Home screen or Install app. Tap Add."

@@ -7,8 +7,8 @@ import {
   updatePlanItem, setNote, deleteSession,
   generateInvite, revokeInvite, unlink, joinWithCode,
   dailyExerciseCounts, exerciseTrends, moodHistory, moodAverage, reopenTutorial, applyChrome
-} from "./store.js?v=20260911e";
-import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911e";
+} from "./store.js?v=20260911f";
+import { AuthPage, RolePage, OnboardingPage, TutorialPage, TodayPage, SessionPage, preactState } from "./ui-session.js?v=20260911f";
 
 let installPrompt = null;
 if (typeof window !== "undefined") {
@@ -276,7 +276,7 @@ function ProfilePage() {
       </div>
       <div class="card">
         <h3>On your Home Screen</h3>
-        <p class="muted">Add Cappie so it opens like any other app, with the mountain icon.</p>
+        <p class="muted">Add Cappie so it opens like any other app, with the mountain icon. Pull down from the top of any screen to load an update.</p>
         <ol class="how-list">
           <li><strong>iPhone.</strong> Open this page in Safari (not Chrome). Tap Share — the square with the arrow — then Add to Home Screen, then Add.</li>
           <li><strong>Android.</strong> Open this page in Chrome. Tap the three-dot menu, then Add to Home screen or Install app, then Add.</li>
@@ -421,3 +421,147 @@ window.__cappieRender = renderApp;
 setRenderer(renderApp);
 subscribe(renderApp);
 renderApp();
+
+const PTR_THRESHOLD = 72;
+const LOCAL_BUILD = () => document.querySelector('meta[name="cappie-build"]')?.getAttribute("content") || "";
+
+function ptrEl() {
+  let el = document.getElementById("ptr");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "ptr";
+  el.className = "ptr";
+  el.setAttribute("aria-hidden", "true");
+  const mark = document.createElement("div");
+  mark.className = "ptr-mark";
+  const label = document.createElement("div");
+  label.className = "ptr-label";
+  el.append(mark, label);
+  document.body.appendChild(el);
+  return el;
+}
+
+function ptrSet(state, text, shift) {
+  const root = document.documentElement;
+  const el = ptrEl();
+  const label = el.querySelector(".ptr-label");
+  const mark = el.querySelector(".ptr-mark");
+  root.classList.toggle("ptr-active", state !== "idle");
+  root.classList.toggle("ptr-dragging", state === "pull" || state === "ready");
+  root.classList.toggle("ptr-busy", state === "busy");
+  el.dataset.state = state;
+  if (label) label.textContent = text || "";
+  const y = shift == null ? (state === "busy" || state === "done" ? 64 : 0) : shift;
+  root.style.setProperty("--ptr-shift", y + "px");
+  if (mark && (state === "pull" || state === "ready")) {
+    mark.style.transform = `rotate(${Math.min(180, (y / PTR_THRESHOLD) * 180)}deg)`;
+  } else if (mark) {
+    mark.style.transform = "";
+  }
+}
+
+let ptr = { live: false, start: 0, dist: 0, busy: false };
+
+function scrollTop() {
+  return window.scrollY || document.documentElement.scrollTop || 0;
+}
+
+function ptrIgnore(target) {
+  const tag = (target && target.tagName) || "";
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function ptrTouchStart(e) {
+  if (ptr.busy || !e.touches || e.touches.length !== 1) return;
+  if (ptrIgnore(e.target)) return;
+  if (scrollTop() > 1) {
+    ptr.live = false;
+    return;
+  }
+  ptr.live = true;
+  ptr.start = e.touches[0].clientY;
+  ptr.dist = 0;
+}
+
+function ptrTouchMove(e) {
+  if (!ptr.live || ptr.busy || !e.touches) return;
+  const dy = e.touches[0].clientY - ptr.start;
+  if (scrollTop() > 1 && ptr.dist === 0) {
+    ptr.live = false;
+    return;
+  }
+  if (dy <= 0) {
+    if (ptr.dist > 0) ptrSet("idle", "", 0);
+    ptr.dist = 0;
+    return;
+  }
+  e.preventDefault();
+  ptr.dist = Math.min(120, dy * 0.4);
+  const ready = ptr.dist >= PTR_THRESHOLD;
+  ptrSet(ready ? "ready" : "pull", ready ? "Release to update" : "Pull to update", ptr.dist);
+}
+
+async function checkForUpdate() {
+  ptr.busy = true;
+  ptrSet("busy", "Checking…", 64);
+  let remote = null;
+  try {
+    const url = new URL("index.html", location.href);
+    url.searchParams.set("ptr", String(Date.now()));
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    const html = await res.text();
+    const m = html.match(/name=["']cappie-build["']\s+content=["']([^"']+)["']/)
+      || html.match(/content=["']([^"']+)["']\s+name=["']cappie-build["']/);
+    remote = m && m[1];
+  } catch {
+    ptrSet("done", "Could not check", 64);
+    setTimeout(() => {
+      ptr.busy = false;
+      ptrSet("idle", "", 0);
+    }, 1100);
+    return "error";
+  }
+  const local = LOCAL_BUILD();
+  if (remote && local && remote === local) {
+    ptrSet("done", "Up to date", 64);
+    setTimeout(() => {
+      ptr.busy = false;
+      ptrSet("idle", "", 0);
+    }, 900);
+    return "current";
+  }
+  ptrSet("busy", "Updating…", 64);
+  const next = new URL(location.href);
+  next.searchParams.set("r", remote || String(Date.now()));
+  location.replace(next.toString());
+  return "reload";
+}
+
+function ptrTouchEnd() {
+  if (!ptr.live || ptr.busy) {
+    ptr.live = false;
+    return;
+  }
+  ptr.live = false;
+  if (ptr.dist >= PTR_THRESHOLD) {
+    checkForUpdate();
+  } else {
+    ptrSet("idle", "", 0);
+  }
+  ptr.dist = 0;
+}
+
+function bindPtr() {
+  if (typeof document === "undefined" || window.__cappiePtrBound) return;
+  window.__cappiePtrBound = true;
+  ptrEl();
+  document.addEventListener("touchstart", ptrTouchStart, { passive: true });
+  document.addEventListener("touchmove", ptrTouchMove, { passive: false });
+  document.addEventListener("touchend", ptrTouchEnd, { passive: true });
+  document.addEventListener("touchcancel", ptrTouchEnd, { passive: true });
+}
+
+window.__cappiePullRefresh = checkForUpdate;
+window.__cappieBuild = LOCAL_BUILD();
+bindPtr();
+

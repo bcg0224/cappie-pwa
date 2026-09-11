@@ -18,10 +18,10 @@ The running build is static HTML + ES modules (`ui.js`, `ui-session.js`, `store.
 - Clinician invite code (one linked physio).
 - Wordmark **Cappie.** — the period follows the theme colour.
 - Mountain app icon for the Home Screen (iOS 180 PNG, Android 192/512 + maskable).
-- Themes (Clay, Forest, Ink, Dusk), wallpapers, night mode. Settings save on the phone and to the cloud account.
+- Themes (Clay, Forest, Ink, Dusk), wallpapers, night mode, text size. Settings save on this phone and to the cloud account.
 - Optional one-handed mode.
 - Tutorial after first setup, including Add to Home Screen for iPhone (Safari) and Android (Chrome). Replay from Settings.
-- Home Screen iOS: content sits below the status overlay, night fills the status bar (no white strip), double-tap does not zoom.
+- Home Screen iOS: content sits below the status overlay, night fills the status bar (no white strip), double-tap does not zoom. Pull down from the top to load an update.
 - Google Sign-in first. Email / password on the same Supabase project is the backup.
 
 ## Dad can log in today (email)

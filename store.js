@@ -1,4 +1,4 @@
-import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, FONT_SCALES, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911e";
+import { KEY, DAYS, LIMB_OPTIONS, EQUIPMENT_OPTIONS, THEMES, WALLS, FONT_SCALES, EXERCISES, SKIP, TUTORIAL } from "./catalog.js?v=20260911f";
 import {
   cloudEnabled,
   oauthStart,
@@ -14,7 +14,7 @@ import {
   findInvite,
   pushLink,
   pullLinkForPhysio
-} from "./cloud.js?v=20260911e";
+} from "./cloud.js?v=20260911f";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

@@ -7,7 +7,7 @@ import {
   startSession, logSet, finishSession, skipSession,
   timerSeconds, startTimer, pauseTimer, resetTimer,
   cloudEnabled, startOAuth, setRole, setLook, completeTutorial
-} from "./store.js?v=20260911e";
+} from "./store.js?v=20260911f";
 
 const hookBuckets = new Map();
 function preactState(init) {
